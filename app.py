@@ -1,38 +1,19 @@
-from flask import Flask, render_template, request
+from flask import Flask, request, render_template
 import cv2
 import numpy as np
-import mediapipe as mp
-import math
-import os
 
 app = Flask(__name__)
 
-mp_face_mesh = mp.solutions.face_mesh
-face_mesh = mp_face_mesh.FaceMesh(static_image_mode=True)
-
-# золотое сечение
-PHI = 1.618
-
-
-def distance(p1, p2):
-    return math.sqrt(
-        (p1.x - p2.x) ** 2 +
-        (p1.y - p2.y) ** 2
-    )
-
-
-def golden_ratio_score(ratio):
-    return 1 - abs(ratio - PHI)
-
+face_cascade = cv2.CascadeClassifier(
+    cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+)
 
 @app.route('/')
 def home():
     return render_template("index.html")
 
-
 @app.route('/analyze', methods=['POST'])
 def analyze():
-
     file = request.files['image']
     if not file:
         return "No file uploaded"
@@ -43,54 +24,56 @@ def analyze():
     if image is None:
         return "Invalid image"
 
-    rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    results = face_mesh.process(rgb)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    faces = face_cascade.detectMultiScale(gray, 1.3, 5)
 
-    if not results.multi_face_landmarks:
+    if len(faces) == 0:
         return "Face not found"
 
-    landmarks = results.multi_face_landmarks[0].landmark
+    (x, y, w, h) = faces[0]
+    face = gray[y:y+h, x:x+w]
 
-    # ключевые точки
-    left_eye = landmarks[33]
-    right_eye = landmarks[263]
-    chin = landmarks[152]
-    forehead = landmarks[10]
-    left_cheek = landmarks[234]
-    right_cheek = landmarks[454]
-    nose_tip = landmarks[1]
+    # --- 1. Пропорция лица (высота / ширина)
+    face_ratio = h / w
+    ideal_ratio = 1.5
+    ratio_score = max(0, 10 - abs(face_ratio - ideal_ratio) * 20)
 
-    # расстояния
-    face_height = distance(forehead, chin)
-    face_width = distance(left_cheek, right_cheek)
-    eye_distance = distance(left_eye, right_eye)
+    # --- 2. Правило третей (верх / середина / низ)
+    third = h // 3
+    top = face[0:third, :]
+    middle = face[third:2*third, :]
+    bottom = face[2*third:h, :]
 
-    # соотношения
-    ratio1 = face_height / face_width
-    ratio2 = face_height / eye_distance
+    top_mean = np.mean(top)
+    middle_mean = np.mean(middle)
+    bottom_mean = np.mean(bottom)
 
-    score1 = golden_ratio_score(ratio1)
-    score2 = golden_ratio_score(ratio2)
+    thirds_balance = abs(top_mean - bottom_mean)
+    thirds_score = max(0, 10 - thirds_balance / 10)
 
-    # симметрия
-    mid_x = (left_cheek.x + right_cheek.x) / 2
-    symmetry = 1 - abs(nose_tip.x - mid_x)
+    # --- 3. Симметрия
+    left = face[:, :w//2]
+    right = face[:, w//2:]
+    right_flipped = cv2.flip(right, 1)
 
-    # итог
-    final_score = (score1 + score2 + symmetry) / 3
-    final_score = max(0, min(final_score * 10, 10))
+    min_width = min(left.shape[1], right_flipped.shape[1])
+    left = left[:, :min_width]
+    right_flipped = right_flipped[:, :min_width]
+
+    symmetry_diff = np.mean(cv2.absdiff(left, right_flipped))
+    symmetry_score = max(0, 10 - symmetry_diff / 10)
+
+    # --- Общая оценка
+    final_score = (ratio_score + thirds_score + symmetry_score) / 3
     final_score = round(final_score, 2)
 
     return f"""
-    <h2>Your Face Score: {final_score} / 10</h2>
-    <p>Golden Ratio 1: {round(score1,3)}</p>
-    <p>Golden Ratio 2: {round(score2,3)}</p>
-    <p>Symmetry: {round(symmetry,3)}</p>
-    <br>
-    <a href="/">Try Again</a>
+    <h2>Your facial analysis</h2>
+    Ratio score: {round(ratio_score,2)}<br>
+    Thirds balance: {round(thirds_score,2)}<br>
+    Symmetry: {round(symmetry_score,2)}<br><br>
+    <strong>Final score: {final_score}/10</strong>
     """
 
-
-if __name__ == "__main__":
+if name == "__main__":
     app.run(host="0.0.0.0", port=10000)
-
