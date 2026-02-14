@@ -1,12 +1,6 @@
 from flask import Flask, request, jsonify, send_file
-import cv2
-import numpy as np
 
 app = Flask(__name__)
-
-face_cascade = cv2.CascadeClassifier(
-    cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-)
 
 @app.route("/")
 def home():
@@ -14,16 +8,13 @@ def home():
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
-    file = request.files["image"]
-    image = np.frombuffer(file.read(), np.uint8)
-    image = cv2.imdecode(image, cv2.IMREAD_COLOR)
+    file = request.files.get("image")
 
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+    if not file:
+        return jsonify({"error": "Фото не получено"})
 
-    if len(faces) == 0:
-        return jsonify({"error": "Лицо не найдено"})
-
-    score = min(10, max(1, len(faces) * 7))
+    # Фейковая оценка для теста
+    import random
+    score = random.randint(5, 10)
 
     return jsonify({"score": score})
