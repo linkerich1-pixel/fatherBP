@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+body { background:#111; color:white; text-align:center; font-family:Arial;}
+button { padding:10px; margin:10px;}
+</style>
+</head>
+<body>
+
+<h2>Face Analyzer</h2>
+<input type="file" id="photo">
+<br>
+<button onclick="sendPhoto()">Analyze</button>
+
+<div id="result"></div>
+
+<script>
+function sendPhoto(){
+    let file = document.getElementById("photo").files[0];
+    let formData = new FormData();
+    formData.append("photo", file);
+
+    fetch("/analyze", {
+        method:"POST",
+        body:formData
+    })
+    .then(res=>res.json())
+    .then(data=>{
+        document.getElementById("result").innerHTML =
+            "Score: " + data.score + "/10<br>" + data.advice;
+    });
+}
+</script>
+
+</body>
+</html>
