@@ -1,37 +1,38 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
-<style>
-body { background:#111; color:white; text-align:center; font-family:Arial;}
-button { padding:10px; margin:10px;}
-</style>
+    <title>Face Analyzer</title>
 </head>
 <body>
 
-<h2>Face Analyzer</h2>
-<input type="file" id="photo">
-<br>
+<h1>Face Rating</h1>
+
+<input type="file" id="fileInput">
 <button onclick="sendPhoto()">Analyze</button>
 
-<div id="result"></div>
+<p id="result"></p>
 
 <script>
-function sendPhoto(){
-    let file = document.getElementById("photo").files[0];
-    let formData = new FormData();
-    formData.append("photo", file);
+async function sendPhoto() {
+    const file = document.getElementById("fileInput").files[0];
 
-    fetch("/analyze", {
-        method:"POST",
-        body:formData
-    })
-    .then(res=>res.json())
-    .then(data=>{
-        document.getElementById("result").innerHTML =
-            "Score: " + data.score + "/10<br>" + data.advice;
+    if (!file) {
+        alert("Выбери фото");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("image", file);
+
+    const response = await fetch("/analyze", {
+        method: "POST",
+        body: formData
     });
+
+    const data = await response.json();
+
+    document.getElementById("result").innerText =
+        data.score ? "Score: " + data.score : data.error;
 }
 </script>
 
